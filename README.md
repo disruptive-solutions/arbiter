@@ -25,6 +25,6 @@ Binary classifier to predict/score whether or not a binary is malware based on v
 
 A script to look in a directory and extract various datapoints and store them in a database
 
-## Modeler
+### Modeler
 
 Take the data from the Data Collector and create a model to predict/score liklihood of an unknown sample being malware
