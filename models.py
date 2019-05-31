@@ -1,5 +1,5 @@
 from pathlib import Path
-from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy import create_engine, Column, Integer, String, Boolean
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 from typing import AnyStr, Dict
@@ -28,6 +28,7 @@ class SampleData(Base):
     __tablename__ = 'sample'
 
     sha256 = Column(String(64), primary_key=True)
+    malware = Column(Boolean)
     # The 7 Adobe predictors
     debug_size = Column(Integer)
     image_version = Column(Integer)

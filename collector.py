@@ -51,17 +51,18 @@ def get_virtual_size_2(pe: pefile.PE) -> int:
 def is_dupe(file_hash: str, session: Session) -> bool:
     # Get the first row that has the same hash as the file to add.
     # If that row exists, the file is already in the database.
-    if session.query(SampleData).filter(SampleData.sha256==file_hash).first():
+    if session.query(SampleData).filter(SampleData.sha256 == file_hash).first():
         return True
     return False
 
 
-def main(dir_path: Path, db_path: Path):
+def main(dir_path: Path, db_path: Path, is_malware: bool):
     """
     Iterate over `dir_path`, get information from each file, add to database
 
     :param dir_path: The directory to iterate
     :param db_path: The path of the database to create/update
+    :param is_malware: Whether the directory contains malware
     """
     db_session = init_db(db_path)
     directory = dir_path.expanduser()
@@ -93,6 +94,7 @@ def main(dir_path: Path, db_path: Path):
 
             # Create a database entry
             sample = SampleData(sha256=file_sha,
+                                malware=is_malware,
                                 debug_size=get_debug_size(pe_file),
                                 image_version=get_image_version(pe_file),
                                 import_rva=get_import_rva(pe_file),
@@ -135,6 +137,7 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument('directory', type=Path, help="The directory where all the malware is stored")
     p.add_argument('database', type=Path, help="The path to a SQLite database to create/update")
+    p.add_argument('--malware', action='store_true', help="The directory contains malware")
 
     args = p.parse_args()
-    main(args.directory, args.database)
+    main(args.directory, args.database, args.malware)
