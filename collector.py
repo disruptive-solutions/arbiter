@@ -1,8 +1,9 @@
 import pefile
-from hashlib import sha256
 
+from hashlib import sha256
 from pathlib import Path
 from sqlalchemy.exc import DatabaseError
+from sqlalchemy.orm import Session
 
 from models import SampleData, init_db
 
@@ -47,6 +48,14 @@ def get_virtual_size_2(pe: pefile.PE) -> int:
         return 0
 
 
+def is_dupe(file_hash: str, session: Session) -> bool:
+    # Get the first row that has the same hash as the file to add.
+    # If that row exists, the file is already in the database.
+    if session.query(SampleData).filter(SampleData.sha256==file_hash).first():
+        return True
+    return False
+
+
 def main(dir_path: Path, db_path: Path):
     """
     Iterate over `dir_path`, get information from each file, add to database
@@ -61,6 +70,7 @@ def main(dir_path: Path, db_path: Path):
     num_files = 0
     num_pe = 0
     num_dupes = 0
+    num_err_db = 0
     dos_files = []
 
     for file in directory.iterdir():
@@ -72,12 +82,17 @@ def main(dir_path: Path, db_path: Path):
         if not file.read_bytes()[:2] == b"MZ":  # Skip over non-PE files
             continue
 
+        file_sha = sha256(file.read_bytes()).hexdigest()
+        if is_dupe(file_sha, db_session):
+            num_dupes += 1
+            continue
+
         try:
             # So that we can use pefile
             pe_file = pefile.PE(file)
 
             # Create a database entry
-            sample = SampleData(sha256=sha256(file.read_bytes()).hexdigest(),
+            sample = SampleData(sha256=file_sha,
                                 debug_size=get_debug_size(pe_file),
                                 image_version=get_image_version(pe_file),
                                 import_rva=get_import_rva(pe_file),
@@ -96,19 +111,19 @@ def main(dir_path: Path, db_path: Path):
             dos_files.append(str(file))
             continue
 
-        except DatabaseError:
-            # Don't add if its SHA256 is already in there
-            db_session.rollback()
-            print(f"Failed to add {str(file)} to the database")
-            num_dupes += 1
+        except (TypeError, AttributeError, IndexError):
             continue
 
-        except (TypeError, AttributeError, IndexError):
+        except DatabaseError:
+            db_session.rollback()
+            print(f"Failed to add {str(file)} to the database")
+            num_err_db += 1
             continue
 
     print(f"\nDuplicates:{str(num_dupes):>35}")
     print(f"b'MZ' files pefile can't handle (DOS?): {str(len(dos_files)):>6}")
     print(f"PE files added to the database:{str(num_pe):>15}")
+    print(f"DatabaseError:{str(num_err_db):>32}")
     print(f"Total files seen:{str(num_files):>29}")
     print("\nPossible DOS-only files:")
     print(dos_files)
