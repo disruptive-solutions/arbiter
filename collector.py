@@ -49,11 +49,45 @@ def get_virtual_size_2(pe: pefile.PE) -> int:
 
 
 def is_dupe(file_hash: str, session: Session) -> bool:
-    # Get the first row that has the same hash as the file to add.
-    # If that row exists, the file is already in the database.
+    """
+    Helper function to check the database for duplicates
+
+    Gets the first row that has the same hash as the file to add.
+    If that row exists, the file is already in the database
+    and the function returns True
+
+    :param file_hash: SHA256 hash of a file
+    :param session: The database session to check for duplicates
+    :return: Whether the file's hash is already in the database (Boolean)
+    """
+
     if session.query(SampleData).filter(SampleData.sha256 == file_hash).first():
         return True
     return False
+
+
+def create_entry(file: Path, file_sha: str, malware: bool) -> SampleData:
+    """
+    Create a SampleData object to be placed in the database
+
+    :param file: A file to extract features from
+    :param file_sha: That file's SHA256 hash
+    :param malware: Whether the file is malware
+    :return: SampleData object populated with info from the file
+    """
+
+    # So that we can use pefile
+    pe_file = pefile.PE(file)
+
+    return SampleData(sha256=file_sha,
+                      malware=malware,
+                      debug_size=get_debug_size(pe_file),
+                      image_version=get_image_version(pe_file),
+                      import_rva=get_import_rva(pe_file),
+                      export_size=get_export_size(pe_file),
+                      resource_size=get_resource_size(pe_file),
+                      num_sections=get_num_sections(pe_file),
+                      virtual_size_2=get_virtual_size_2(pe_file))
 
 
 def main(dir_path: Path, db_path: Path, is_malware: bool):
@@ -84,43 +118,36 @@ def main(dir_path: Path, db_path: Path, is_malware: bool):
             continue
 
         file_sha = sha256(file.read_bytes()).hexdigest()
-        if is_dupe(file_sha, db_session):
+        if is_dupe(file_sha, db_session):  # Skip over duplicates
             num_dupes += 1
             continue
 
         try:
-            # So that we can use pefile
-            pe_file = pefile.PE(file)
-
             # Create a database entry
-            sample = SampleData(sha256=file_sha,
-                                malware=is_malware,
-                                debug_size=get_debug_size(pe_file),
-                                image_version=get_image_version(pe_file),
-                                import_rva=get_import_rva(pe_file),
-                                export_size=get_export_size(pe_file),
-                                resource_size=get_resource_size(pe_file),
-                                num_sections=get_num_sections(pe_file),
-                                virtual_size_2=get_virtual_size_2(pe_file))
+            sample = create_entry(file, file_sha, is_malware)
 
             # Add the database entry to the database
             db_session.add(sample)
             db_session.commit()
-            print(f"Added {str(file)} to the database")
-            num_pe += 1
 
         except pefile.PEFormatError:
+            # b'MZ' files that pefile can't handle are likely DOS-only
             dos_files.append(str(file))
             continue
 
         except (TypeError, AttributeError, IndexError):
             continue
 
+        # Say something if there's a problem with the database
         except DatabaseError:
             db_session.rollback()
             print(f"Failed to add {str(file)} to the database")
             num_err_db += 1
             continue
+
+        else:
+            print(f"Added {str(file)} to the database")
+            num_pe += 1
 
     print(f"\nDuplicates:{str(num_dupes):>35}")
     print(f"b'MZ' files pefile can't handle (DOS?): {str(len(dos_files)):>6}")
