@@ -45,4 +45,12 @@ class SampleData(Base):
         return repr(self)
 
     def serialize(self) -> Dict:
-        return {'sha256': self.sha256}
+        return {'sha256': self.sha256,
+                'malware': self.malware,
+                'debug_size': self.debug_size,
+                'image_version': self.image_version,
+                'import_rva': self.import_rva,
+                'export_size': self.export_size,
+                'resource_size': self.resource_size,
+                'num_sections': self.num_sections,
+                'virtual_size_2': self.virtual_size_2}
