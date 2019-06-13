@@ -1,3 +1,6 @@
 python-magic
 pefile
 SQLAlchemy
+pandas
+scikit-learn
+xgboost
