@@ -61,7 +61,7 @@ The train module creates the following models:
 * `sklearn.linear_model.LogisticRegressionCV`
 * `sklearn.linear_model.SGDClassifier`
 * `sklearn.naive_bayes.GaussianNB`
-* `sklearn.svm'LinearSVC`
+* `sklearn.svm.LinearSVC`
 * `xgboost.sklearn.XGBClassifier`
 
 Finally, `pickle` and write the models (defaults `./arbiter_models.pickle`).
